@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #1A1870;
+  --color-navy-dark: #12104f;
+  --color-brand: #E07C30;
+  --color-brand-light: #F5A054;
+  --color-gold: #C9A030;
+  --color-gold-light: #D9B760;
+  --color-gold-dark: #A88520;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html, body { background: #f8fafc; color: #0f172a; }
+.tabular { font-variant-numeric: tabular-nums; }
