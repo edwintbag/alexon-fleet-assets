@@ -9,7 +9,7 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader title="My account" subtitle={`${user.email} · ${ROLE_LABELS[user.role]}`} />
-      <Card className="max-w-lg">
+      <Card className="animate-rise max-w-lg">
         <CardHeader title="Change password" />
         <div className="p-4 sm:p-5"><PasswordForm /></div>
       </Card>

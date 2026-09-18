@@ -1,4 +1,7 @@
+import Link from "next/link";
+import { LogOut } from "lucide-react";
 import { requireUser, ROLE_LABELS } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { Nav } from "@/components/nav";
 import { signOut } from "@/app/login/actions";
 
@@ -6,41 +9,68 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+
+  // small badge counts for the navigation
+  const supabase = await createClient();
+  const safe = async <T,>(fn: () => PromiseLike<{ data: T[] | null }>) => {
+    try { return (await fn()).data ?? []; } catch { return [] as T[]; }
+  };
+  const [svc, docs, faults, lowParts, prs] = await Promise.all([
+    safe(() => supabase.from("v_asset_service_status").select("service_status").is("archived_at", null)),
+    safe(() => supabase.from("v_compliance_status").select("status").neq("status", "valid")),
+    safe(() => supabase.from("v_breakdowns").select("status").neq("status", "resolved")),
+    safe(() => supabase.from("v_part_stock_status").select("stock_status").neq("stock_status", "ok")),
+    safe(() => supabase.from("v_purchase_requests").select("status").eq("status", "submitted")),
+  ]);
+  const counts = {
+    "/assets": svc.filter((r) => ["overdue", "due", "due_soon"].includes(String((r as { service_status: string }).service_status))).length,
+    "/compliance": docs.length,
+    "/breakdowns": faults.length,
+    "/parts": lowParts.length,
+    "/purchasing": prs.length,
+  };
+  const initials = user.fullName.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+
   return (
     <div className="min-h-screen md:flex">
-      <aside className="hidden w-60 shrink-0 flex-col bg-navy px-3 py-5 md:flex md:min-h-screen">
-        <div className="mb-6 flex items-center gap-2 px-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand font-bold text-white">A</div>
-          <div className="leading-tight">
-            <p className="text-sm font-semibold text-white">Alexon Fleet</p>
-            <p className="text-[11px] text-slate-300">Asset Management</p>
-          </div>
-        </div>
-        <Nav isAdmin={user.role === "admin"} variant="side" />
-        <div className="mt-auto border-t border-white/10 px-3 pt-4">
-          <a href="/account" className="block truncate text-sm font-medium text-white hover:underline">{user.fullName}</a>
-          <p className="text-xs text-slate-300">{ROLE_LABELS[user.role]}</p>
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-gradient-to-b from-navy via-navy to-navy-900 px-3 py-5 md:flex">
+        <Link href="/dashboard" className="mb-7 flex items-center gap-2.5 px-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-base font-bold text-white shadow-lg shadow-brand/20">A</span>
+          <span className="leading-tight">
+            <span className="block text-[15px] font-semibold text-white">Alexon Fleet</span>
+            <span className="block text-[11px] text-white/50">Asset Management</span>
+          </span>
+        </Link>
+
+        <Nav isAdmin={user.role === "admin"} variant="side" counts={counts} />
+
+        <div className="mt-auto rounded-xl bg-white/5 p-3">
+          <Link href="/account" className="flex items-center gap-2.5 rounded-lg transition hover:opacity-90">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white">{initials}</span>
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate text-sm font-medium text-white">{user.fullName}</span>
+              <span className="block truncate text-[11px] text-white/50">{ROLE_LABELS[user.role]}</span>
+            </span>
+          </Link>
           <form action={signOut} className="mt-2">
-            <button className="text-xs text-slate-300 underline hover:text-white">Sign out</button>
+            <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/5 py-1.5 text-xs font-medium text-white/70 transition hover:bg-white/10 hover:text-white">
+              <LogOut className="h-3.5 w-3.5" /> Sign out
+            </button>
           </form>
         </div>
       </aside>
 
-      <div className="flex-1">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-navy text-sm font-bold text-white">A</div>
-            <span className="text-sm font-semibold">Alexon Fleet</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <a href="/account" className="text-xs text-slate-500 underline">Account</a>
-            <form action={signOut}>
-              <button className="text-xs text-slate-500 underline">Sign out</button>
-            </form>
-          </div>
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-navy text-sm font-bold text-white">A</span>
+            <span className="text-[15px] font-semibold tracking-tight">Alexon Fleet</span>
+          </Link>
+          <Link href="/account" className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">{initials}</Link>
         </header>
-        <main className="mx-auto max-w-6xl px-4 pb-24 pt-5 sm:px-6 md:pb-10 md:pt-8">{children}</main>
-        <Nav isAdmin={user.role === "admin"} variant="bottom" />
+
+        <main className="pb-safe mx-auto max-w-6xl px-4 pt-5 sm:px-6 md:pb-12 md:pt-8">{children}</main>
+        <Nav isAdmin={user.role === "admin"} variant="bottom" counts={counts} />
       </div>
     </div>
   );

@@ -33,3 +33,34 @@ export const DOCUMENT_TYPES = [
   "Certificate",
   "Other",
 ];
+
+export const BREAKDOWN_STATUS: Record<string, { label: string; tone: Tone }> = {
+  reported: { label: "Reported", tone: "red" },
+  in_progress: { label: "In progress", tone: "amber" },
+  awaiting_parts: { label: "Awaiting parts", tone: "orange" },
+  resolved: { label: "Resolved", tone: "green" },
+};
+
+export const SEVERITY: Record<string, { label: string; tone: Tone }> = {
+  critical: { label: "Critical", tone: "red" },
+  major: { label: "Major", tone: "amber" },
+  minor: { label: "Minor", tone: "slate" },
+};
+
+export const STOCK_STATUS: Record<string, { label: string; tone: Tone }> = {
+  ok: { label: "In stock", tone: "green" },
+  low: { label: "Low stock", tone: "amber" },
+  out_of_stock: { label: "Out of stock", tone: "red" },
+};
+
+export const PR_STATUS: Record<string, { label: string; tone: Tone }> = {
+  draft: { label: "Draft", tone: "slate" },
+  submitted: { label: "Awaiting approval", tone: "amber" },
+  approved: { label: "Approved", tone: "blue" },
+  rejected: { label: "Rejected", tone: "red" },
+  ordered: { label: "Ordered", tone: "blue" },
+  received: { label: "Received", tone: "green" },
+  cancelled: { label: "Cancelled", tone: "slate" },
+};
+
+export const PART_UNITS = ["pcs", "litres", "kg", "metres", "set", "pair"];

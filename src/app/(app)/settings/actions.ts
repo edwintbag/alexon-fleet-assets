@@ -26,6 +26,9 @@ export async function saveSettings(_prev: ActionState, fd: FormData): Promise<Ac
   }
   update.digest_enabled = fd.get("digest_enabled") === "on";
   update.digest_extra_emails = String(fd.get("digest_extra_emails") ?? "").trim();
+  update.weekly_report_enabled = fd.get("weekly_report_enabled") === "on";
+  update.monthly_report_enabled = fd.get("monthly_report_enabled") === "on";
+  update.report_extra_emails = String(fd.get("report_extra_emails") ?? "").trim();
   update.updated_at = new Date().toISOString();
 
   const supabase = await createClient();

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Plus, FileText } from "lucide-react";
 import { requireUser, canEditFleet } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { ComplianceRow } from "@/lib/attention";
-import { Badge, Card, EmptyState, LinkButton, PageHeader, cn } from "@/components/ui";
+import { CLASS_LABEL, classRank, type ComplianceRow } from "@/lib/attention";
+import { Badge, Card, EmptyState, LinkButton, PageHeader, buttonClass, cn } from "@/components/ui";
 import { COMPLIANCE_STATUS } from "@/lib/status";
 import { formatDate, formatKES, formatReg } from "@/lib/format";
 import { retireDocument } from "./actions";
@@ -19,7 +19,16 @@ export default async function CompliancePage({ searchParams }: { searchParams: P
   if (error) throw error;
   const all = (data ?? []) as ComplianceRow[];
   const show = sp.show ?? "attention";
-  const rows = show === "all" ? all : all.filter((d) => d.status !== "valid");
+  const rows = (show === "all" ? all : all.filter((d) => d.status !== "valid"))
+    .sort((x, y) => classRank(x.asset_class ?? null) - classRank(y.asset_class ?? null) || x.days_remaining - y.days_remaining);
+
+  const groups = rows.reduce<{ label: string; rows: ComplianceRow[] }[]>((acc, d) => {
+    const label = d.asset_id ? CLASS_LABEL[d.asset_class ?? ""] ?? "Other" : "Company-wide";
+    const last = acc[acc.length - 1];
+    if (last && last.label === label) last.rows.push(d);
+    else acc.push({ label, rows: [d] });
+    return acc;
+  }, []);
   const edit = canEditFleet(user.role);
 
   return (
@@ -32,18 +41,26 @@ export default async function CompliancePage({ searchParams }: { searchParams: P
       />
       <div className="mb-4 flex gap-1 text-sm">
         {[["attention", "Expired & expiring"], ["all", "All current"]].map(([k, label]) => (
-          <Link key={k} href={`/compliance?show=${k}`} className={cn("rounded-full px-3 py-1", show === k ? "bg-navy text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}>{label}</Link>
+          <Link key={k} href={`/compliance?show=${k}`} className={cn("rounded-full px-3 py-1 text-xs font-medium transition", show === k ? "bg-navy text-white shadow-sm" : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50")}>{label}</Link>
         ))}
       </div>
-      <Card>
+      <Card className="animate-rise">
         {rows.length === 0 ? (
-          <EmptyState title={show === "all" ? "No documents yet" : "Nothing expired or expiring"}>
+          <EmptyState title={show === "all" ? "No documents yet" : "Nothing expired or expiring"} icon={FileText}>
             {edit && <Link href="/compliance/new" className="underline">Add the first document</Link>}
           </EmptyState>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {rows.map((d) => (
-              <li key={d.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
+            {groups.map((g) => (
+              <li key={g.label}>
+                {groups.length > 1 && (
+                  <p className="bg-slate-50/70 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
+                    {g.label} <span className="tabular text-slate-400">({g.rows.length})</span>
+                  </p>
+                )}
+                <ul className="stagger divide-y divide-slate-100">
+            {g.rows.map((d) => (
+              <li key={d.id} className="flex flex-col gap-2 px-4 py-3.5 transition-colors hover:bg-slate-50/70 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">
                     <span className="font-semibold text-slate-900">{d.document_type}</span>
@@ -62,11 +79,11 @@ export default async function CompliancePage({ searchParams }: { searchParams: P
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={COMPLIANCE_STATUS[d.status].tone}>{COMPLIANCE_STATUS[d.status].label}</Badge>
                   {d.file_path && (
-                    <a href={`/api/files/${d.id}`} target="_blank" rel="noopener" className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50">
+                    <a href={`/api/files/${d.id}`} target="_blank" rel="noopener" className={buttonClass.small}>
                       <FileText className="h-4 w-4" /> File
                     </a>
                   )}
-                  {edit && <Link href={`/compliance/new?renew=${d.id}`} className="inline-flex min-h-9 items-center rounded-lg bg-navy px-3 text-sm font-medium text-white hover:bg-navy-dark">Renew</Link>}
+                  {edit && <Link href={`/compliance/new?renew=${d.id}`} className="inline-flex min-h-9 items-center rounded-lg bg-navy px-3 text-sm font-medium text-white transition hover:bg-navy-600 active:scale-[.98]">Renew</Link>}
                   {edit && (
                     <form action={retireDocument}>
                       <input type="hidden" name="id" value={d.id} />
@@ -74,6 +91,9 @@ export default async function CompliancePage({ searchParams }: { searchParams: P
                     </form>
                   )}
                 </div>
+              </li>
+            ))}
+                </ul>
               </li>
             ))}
           </ul>

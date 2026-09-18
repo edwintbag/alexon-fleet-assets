@@ -55,3 +55,6 @@ export async function requireRole(...roles: Role[]): Promise<AppUser> {
 
 export const canEditFleet = (role: Role) => role === "admin" || role === "fleet";
 export const isAdmin = (role: Role) => role === "admin";
+export const canManageStock = (role: Role) => role === "admin" || role === "stores";
+export const canRequestPurchase = (role: Role) => role === "admin" || role === "stores" || role === "fleet";
+export const canApprovePurchase = (role: Role) => role === "admin" || role === "management";

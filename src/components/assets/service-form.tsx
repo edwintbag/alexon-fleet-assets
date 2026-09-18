@@ -33,6 +33,9 @@ export function ServiceForm({ assetId, unit, today, currentReading, hasMeter, la
           <input id="cost" name="cost" inputMode="decimal" defaultValue={v.cost ?? ""} className={`${inputClass} tabular`} />
         </Field>
       </div>
+      <Field label="Invoice / job card" htmlFor="invoice" hint="Optional — PDF or photo, max 4 MB">
+        <input id="invoice" name="invoice" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className={`${inputClass} py-1.5`} />
+      </Field>
       <Field label="Notes" htmlFor="svc-notes">
         <textarea id="svc-notes" name="notes" rows={2} defaultValue={v.notes ?? ""} className={inputClass} />
       </Field>

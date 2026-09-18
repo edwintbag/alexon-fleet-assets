@@ -14,13 +14,13 @@ export default async function UsersPage() {
   return (
     <>
       <PageHeader title="Users" subtitle="People who can sign in, and what they can do" />
-      <Card className="mb-6">
+      <Card className="animate-rise mb-6">
         <CardHeader title="Add user" />
         <div className="p-4 sm:p-5"><AddUserForm /></div>
       </Card>
-      <Card>
+      <Card className="animate-rise">
         <CardHeader title={`${users?.length ?? 0} users`} />
-        <ul className="divide-y divide-slate-100">
+        <ul className="stagger divide-y divide-slate-100">
           {(users ?? []).map((u) => (
             <li key={u.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div>
@@ -39,7 +39,7 @@ export default async function UsersPage() {
                     <option value="true">Active</option>
                     <option value="false">Deactivated</option>
                   </select>
-                  <button className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50">Update</button>
+                  <button className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:scale-[.98]">Update</button>
                 </form>
               )}
             </li>

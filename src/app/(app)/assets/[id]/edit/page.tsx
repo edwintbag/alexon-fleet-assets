@@ -23,7 +23,7 @@ export default async function EditAssetPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <PageHeader title={`Edit ${asset.name}`} />
-      <Card className="p-4 sm:p-6">
+      <Card className="animate-rise p-4 sm:p-6">
         <AssetForm action={updateAsset} initial={asset} users={users ?? []} categories={categories} isNew={false} meterLocked={(count ?? 0) > 0} />
       </Card>
       {user.role === "admin" && (

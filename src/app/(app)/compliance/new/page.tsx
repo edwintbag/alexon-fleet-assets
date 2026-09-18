@@ -25,7 +25,7 @@ export default async function NewDocumentPage({ searchParams }: { searchParams: 
   return (
     <>
       <PageHeader title={title} subtitle={sp.renew ? "The old document is kept in history and stops raising alerts." : undefined} />
-      <Card className="p-4 sm:p-6">
+      <Card className="animate-rise p-4 sm:p-6">
         <DocumentForm assets={assets ?? []} initial={initial} />
       </Card>
     </>

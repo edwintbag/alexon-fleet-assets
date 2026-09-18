@@ -123,6 +123,59 @@ export async function saveServicePlan(_prev: ActionState, fd: FormData): Promise
   return { ok: true, message: "Service plan saved.", nonce: Date.now() };
 }
 
+const ALLOWED_FILES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+
+/** Uploads a file to the asset-files bucket and records it. Returns an error message, or null. */
+async function storeFile(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  file: File,
+  assetId: string,
+  opts: { title: string; kind: string; serviceRecordId?: string | null; breakdownId?: string | null },
+): Promise<string | null> {
+  if (!ALLOWED_FILES.includes(file.type)) return "File must be a PDF, JPG, PNG or WEBP.";
+  if (file.size > 4 * 1024 * 1024) return "File is larger than 4 MB.";
+  const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  const path = `${assetId}/${crypto.randomUUID()}.${ext}`;
+  const { error: upErr } = await supabase.storage.from("asset-files").upload(path, file, { contentType: file.type });
+  if (upErr) return "Upload failed. " + friendlyError(upErr);
+  const { error } = await supabase.from("asset_files").insert({
+    asset_id: assetId,
+    service_record_id: opts.serviceRecordId ?? null,
+    breakdown_id: opts.breakdownId ?? null,
+    title: opts.title.slice(0, 120),
+    kind: opts.kind,
+    file_path: path,
+    file_size: file.size,
+    mime_type: file.type,
+  });
+  return error ? friendlyError(error) : null;
+}
+
+export async function uploadAssetFile(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  await requireRole("admin", "fleet", "stores");
+  const assetId = str(fd.get("asset_id"));
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
+  const title = str(fd.get("title")) || file.name;
+
+  const supabase = await createClient();
+  const err = await storeFile(supabase, file, assetId, { title, kind: str(fd.get("kind")) || "other" });
+  if (err) return { error: err };
+  revalidatePath(`/assets/${assetId}`);
+  return { ok: true, message: "File uploaded.", nonce: Date.now() };
+}
+
+export async function deleteAssetFile(fd: FormData) {
+  await requireRole("admin");
+  const id = str(fd.get("id"));
+  const assetId = str(fd.get("asset_id"));
+  const supabase = await createClient();
+  const { data: file } = await supabase.from("asset_files").select("file_path").eq("id", id).maybeSingle();
+  if (file?.file_path) await supabase.storage.from("asset-files").remove([file.file_path]);
+  await supabase.from("asset_files").delete().eq("id", id);
+  revalidatePath(`/assets/${assetId}`);
+}
+
 export async function recordReading(_prev: ActionState, fd: FormData): Promise<ActionState> {
   await requireRole("admin", "fleet");
   const assetId = str(fd.get("asset_id"));
@@ -169,6 +222,18 @@ export async function completeService(_prev: ActionState, fd: FormData): Promise
   });
   if (error) return { error: friendlyError(error), values };
 
+  // optional invoice / job card for this service
+  const file = fd.get("invoice");
+  let fileNote = "";
+  if (file instanceof File && file.size > 0) {
+    const err = await storeFile(supabase, file, assetId, {
+      title: `${str(fd.get("service_type")) || "Service"} — ${serviceDate}`,
+      kind: "invoice",
+      serviceRecordId: data?.record_id ?? null,
+    });
+    if (err) fileNote = ` (but the file was not saved: ${err})`;
+  }
+
   revalidatePath(`/assets/${assetId}`);
   revalidatePath("/assets");
   revalidatePath("/dashboard");
@@ -176,5 +241,5 @@ export async function completeService(_prev: ActionState, fd: FormData): Promise
     data?.next_due_meter != null ? `${Number(data.next_due_meter).toLocaleString("en-KE")}` : null,
     data?.next_due_date ? `date ${data.next_due_date}` : null,
   ].filter(Boolean).join(" / ");
-  return { ok: true, message: `Service recorded.${next ? ` Next service: ${next}.` : ""}`, nonce: Date.now() };
+  return { ok: true, message: `Service recorded.${next ? ` Next service: ${next}.` : ""}${fileNote}`, nonce: Date.now() };
 }

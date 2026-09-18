@@ -17,7 +17,7 @@ export default async function NewAssetPage() {
   return (
     <>
       <PageHeader title="Add asset" subtitle="After saving you'll set up the service plan." />
-      <Card className="p-4 sm:p-6">
+      <Card className="animate-rise p-4 sm:p-6">
         <AssetForm action={createAsset} initial={{}} users={users ?? []} categories={categories} isNew />
       </Card>
     </>

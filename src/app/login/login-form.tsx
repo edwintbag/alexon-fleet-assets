@@ -8,7 +8,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
   const [state, action] = useActionState(signIn, null);
   return (
     <form action={action} className="space-y-4">
-      {notice && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{notice}</p>}
+      {notice && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-inset ring-amber-600/20">{notice}</p>}
       <FormMessage state={state} />
       <input type="hidden" name="next" value={next} />
       <Field label="Email" htmlFor="email">
@@ -17,7 +17,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string }) {
       <Field label="Password" htmlFor="password">
         <input id="password" name="password" type="password" autoComplete="current-password" required className={inputClass} />
       </Field>
-      <SubmitButton pendingText="Signing in…">Sign in</SubmitButton>
+      <SubmitButton pendingText="Signing in…" className="w-full">Sign in</SubmitButton>
     </form>
   );
 }

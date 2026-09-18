@@ -60,6 +60,16 @@ export function SettingsForm({ s }: { s: S }) {
           <input name="digest_extra_emails" defaultValue={String(s.digest_extra_emails ?? "")} className={inputClass} />
         </label>
       </div>
+      <div className="space-y-2">
+        <h3 className="font-semibold text-slate-900">Management reports</h3>
+        <p className="text-sm text-slate-500">Summary emails to everyone with an Admin or Management account.</p>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="weekly_report_enabled" defaultChecked={s.weekly_report_enabled !== false} className="h-4 w-4" /> Weekly summary every Monday morning</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="monthly_report_enabled" defaultChecked={s.monthly_report_enabled !== false} className="h-4 w-4" /> Monthly summary on the 1st</label>
+        <label className="block space-y-1 text-sm">
+          <span className="font-medium text-slate-700">Extra report recipients (comma-separated)</span>
+          <input name="report_extra_emails" defaultValue={String(s.report_extra_emails ?? "")} className={inputClass} />
+        </label>
+      </div>
       <SubmitButton>Save settings</SubmitButton>
     </form>
   );

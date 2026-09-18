@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings" subtitle="Rules that decide what needs attention" />
-      <Card>
+      <Card className="animate-rise">
         <CardHeader title="Alert rules" />
         <div className="p-4 sm:p-5"><SettingsForm s={data ?? {}} /></div>
       </Card>
