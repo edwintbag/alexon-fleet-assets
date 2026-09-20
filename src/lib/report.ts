@@ -61,7 +61,8 @@ export function reportHtml(r: ManagementReport, title: string, appUrl: string): 
 
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;margin:auto;color:#0f172a">
     <div style="background:#1A1870;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0">
-      <div style="font-size:18px;font-weight:700">Alexon Fleet — ${esc(title)}</div>
+      ${appUrl ? `<img src="${appUrl}/brand/email-logo.png" alt="Alexon Group Ltd" width="150" height="45" style="display:block;border:0;margin-bottom:8px">` : ""}
+      <div style="font-size:18px;font-weight:700">Fleet — ${esc(title)}</div>
       <div style="font-size:12px;opacity:.75">${esc(formatDate(r.from))} to ${esc(formatDate(r.to))}</div>
     </div>
     <div style="border:1px solid #e2e8f0;border-top:0;padding:18px 20px;border-radius:0 0 8px 8px">

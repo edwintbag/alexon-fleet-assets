@@ -1,9 +1,12 @@
+import Image from "next/image";
 import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { requireUser, ROLE_LABELS } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Nav } from "@/components/nav";
 import { signOut } from "@/app/login/actions";
+import wordmarkCompact from "@/assets/brand/wordmark-compact.png";
+import emblem from "@/assets/brand/emblem.png";
 
 export const dynamic = "force-dynamic";
 
@@ -35,12 +38,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen md:flex">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-gradient-to-b from-navy via-navy to-navy-900 px-3 py-5 md:flex">
-        <Link href="/dashboard" className="mb-7 flex items-center gap-2.5 px-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-base font-bold text-white shadow-lg shadow-brand/20">A</span>
-          <span className="leading-tight">
-            <span className="block text-[15px] font-semibold text-white">Alexon Fleet</span>
-            <span className="block text-[11px] text-white/50">Asset Management</span>
-          </span>
+        <Link href="/dashboard" className="mb-7 block px-3 pt-1" aria-label="Alexon Group Ltd — dashboard">
+          <Image src={wordmarkCompact} alt="Alexon Group Ltd" priority className="h-auto w-[176px] drop-shadow-[0_4px_10px_rgba(0,0,0,.35)]" />
+          <span className="mt-2 block whitespace-nowrap text-[10.5px] font-semibold uppercase tracking-[0.06em] text-white/75">Fleet &amp; Asset Management</span>
         </Link>
 
         <Nav isAdmin={user.role === "admin"} variant="side" counts={counts} />
@@ -62,10 +62,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-navy text-sm font-bold text-white">A</span>
-            <span className="text-[15px] font-semibold tracking-tight">Alexon Fleet</span>
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur md:hidden">
+          <Link href="/dashboard" className="flex items-center gap-2.5" aria-label="Alexon Group Ltd — dashboard">
+            <Image src={emblem} alt="Alexon Group Ltd" priority className="h-11 w-auto" />
+            <span className="border-l border-slate-200 pl-2.5 text-[11px] font-semibold uppercase leading-tight tracking-wider text-slate-600">Fleet &amp;<br />Assets</span>
           </Link>
           <Link href="/account" className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">{initials}</Link>
         </header>

@@ -61,7 +61,10 @@ export async function GET(req: Request) {
 
   const appUrl = appUrlEarly;
   const html = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;color:#0f172a">
-    <div style="background:#1A1870;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0"><strong>Alexon Fleet</strong> — what needs attention · ${formatDate(todayNairobi())}</div>
+    <div style="background:#1A1870;color:#fff;padding:16px 18px;border-radius:8px 8px 0 0">
+      ${appUrl ? `<img src="${appUrl}/brand/email-logo.png" alt="Alexon Group Ltd" width="150" height="45" style="display:block;border:0;margin-bottom:8px">` : ""}
+      <strong>Fleet</strong> — what needs attention · ${formatDate(todayNairobi())}
+    </div>
     <div style="border:1px solid #e2e8f0;border-top:0;padding:8px 18px 18px;border-radius:0 0 8px 8px">
       <p>${critical.length} critical · ${important.length} important · ${normal.length} normal</p>
       ${section("Critical", "#dc2626", critical, appUrl)}
