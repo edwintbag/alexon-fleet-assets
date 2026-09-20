@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Plus, ShoppingCart, Users } from "lucide-react";
+import { ChevronRight, Plus, ShoppingCart, Users, Repeat } from "lucide-react";
 import { requireUser, canRequestPurchase } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { PurchaseRequestRow } from "@/lib/attention";
@@ -34,6 +34,7 @@ export default async function PurchasingPage({ searchParams }: { searchParams: P
         subtitle={`${all.filter((r) => r.status === "submitted").length} awaiting approval · ${all.filter((r) => ["approved", "ordered"].includes(r.status)).length} in progress`}
         actions={
           <>
+            <LinkButton href="/purchasing/plans"><Repeat className="h-4 w-4" /> Buying plan</LinkButton>
             <LinkButton href="/purchasing/suppliers"><Users className="h-4 w-4" /> Suppliers</LinkButton>
             {canRequestPurchase(user.role) && <LinkButton href="/purchasing/new" variant="primary"><Plus className="h-4 w-4" /> New request</LinkButton>}
           </>

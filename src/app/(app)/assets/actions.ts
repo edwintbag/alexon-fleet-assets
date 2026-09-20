@@ -23,6 +23,8 @@ const assetSchema = z.object({
   operational_status: z.enum(["operational", "under_maintenance", "breakdown", "standby", "disposed"]),
   responsible_user_id: z.string().uuid().nullable(),
   notes: z.string().max(2000).nullable(),
+  driver_name: z.string().max(80).nullable(),
+  co_driver_name: z.string().max(80).nullable(),
 });
 
 function readAsset(fd: FormData) {
@@ -37,6 +39,8 @@ function readAsset(fd: FormData) {
     operational_status: str(fd.get("operational_status")) || "operational",
     responsible_user_id: optStr(fd.get("responsible_user_id")),
     notes: optStr(fd.get("notes")),
+    driver_name: optStr(fd.get("driver_name")),
+    co_driver_name: optStr(fd.get("co_driver_name")),
   });
 }
 

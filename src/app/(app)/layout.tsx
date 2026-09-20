@@ -15,19 +15,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const safe = async <T,>(fn: () => PromiseLike<{ data: T[] | null }>) => {
     try { return (await fn()).data ?? []; } catch { return [] as T[]; }
   };
-  const [svc, docs, faults, lowParts, prs] = await Promise.all([
+  const [svc, docs, faults, lowParts, prs, plansDue] = await Promise.all([
     safe(() => supabase.from("v_asset_service_status").select("service_status").is("archived_at", null)),
     safe(() => supabase.from("v_compliance_status").select("status").neq("status", "valid")),
     safe(() => supabase.from("v_breakdowns").select("status").neq("status", "resolved")),
     safe(() => supabase.from("v_part_stock_status").select("stock_status").neq("stock_status", "ok")),
     safe(() => supabase.from("v_purchase_requests").select("status").eq("status", "submitted")),
+    safe(() => supabase.from("v_purchase_plans").select("id").eq("is_active", true).lte("days_until_due", 0)),
   ]);
   const counts = {
     "/assets": svc.filter((r) => ["overdue", "due", "due_soon"].includes(String((r as { service_status: string }).service_status))).length,
     "/compliance": docs.length,
     "/breakdowns": faults.length,
     "/parts": lowParts.length,
-    "/purchasing": prs.length,
+    "/purchasing": prs.length + plansDue.length,
   };
   const initials = user.fullName.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 

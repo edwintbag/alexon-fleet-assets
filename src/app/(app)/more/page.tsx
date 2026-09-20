@@ -11,11 +11,15 @@ export const metadata = { title: "More" };
 export default async function MorePage() {
   const user = await requireUser();
   const supabase = await createClient();
-  const [{ data: parts }, { data: prs }] = await Promise.all([
+  const [{ data: parts }, { data: prs }, { data: plansDue }] = await Promise.all([
     supabase.from("v_part_stock_status").select("stock_status").neq("stock_status", "ok"),
     supabase.from("v_purchase_requests").select("status").eq("status", "submitted"),
+    supabase.from("v_purchase_plans").select("id").eq("is_active", true).lte("days_until_due", 0),
   ]);
-  const counts: Record<string, number> = { "/parts": parts?.length ?? 0, "/purchasing": prs?.length ?? 0 };
+  const counts: Record<string, number> = {
+    "/parts": parts?.length ?? 0,
+    "/purchasing": (prs?.length ?? 0) + (plansDue?.length ?? 0),
+  };
   const items = NAV_ITEMS.filter((i) => !i.adminOnly || user.role === "admin");
 
   return (

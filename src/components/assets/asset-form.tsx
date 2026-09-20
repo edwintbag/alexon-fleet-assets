@@ -1,5 +1,5 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { ActionState } from "@/lib/errors";
 import { Field, inputClass } from "@/components/ui";
 import { FormMessage, SubmitButton } from "@/components/form-bits";
@@ -16,6 +16,8 @@ export type AssetFormValues = {
   operational_status?: string;
   responsible_user_id?: string | null;
   notes?: string | null;
+  driver_name?: string | null;
+  co_driver_name?: string | null;
 };
 
 export function AssetForm({
@@ -36,6 +38,8 @@ export function AssetForm({
   const [state, formAction] = useActionState(action, null);
   const v = { ...initial, ...(state?.values ?? {}) } as Record<string, string | null | undefined>;
   const val = (k: string) => (v[k] ?? "") as string;
+  const [assetClass, setAssetClass] = useState(val("asset_class") || "vehicle");
+  const isMachine = assetClass === "machinery" || assetClass === "equipment";
 
   return (
     <form action={formAction} className="space-y-5" key={JSON.stringify(state?.values ?? {})}>
@@ -54,7 +58,7 @@ export function AssetForm({
           <datalist id="categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
         </Field>
         <Field label="Class" htmlFor="asset_class">
-          <select id="asset_class" name="asset_class" defaultValue={val("asset_class") || "vehicle"} className={inputClass}>
+          <select id="asset_class" name="asset_class" value={assetClass} onChange={(e) => setAssetClass(e.target.value)} className={inputClass}>
             <option value="vehicle">Vehicle</option>
             <option value="machinery">Machinery / plant</option>
             <option value="trailer">Trailer</option>
@@ -89,6 +93,12 @@ export function AssetForm({
             <option value="">— Not assigned —</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
           </select>
+        </Field>
+        <Field label={isMachine ? "Operator" : "Driver"} htmlFor="driver_name">
+          <input id="driver_name" name="driver_name" defaultValue={val("driver_name")} autoComplete="off" className={inputClass} />
+        </Field>
+        <Field label={isMachine ? "Assistant operator" : "Co-driver"} htmlFor="co_driver_name">
+          <input id="co_driver_name" name="co_driver_name" defaultValue={val("co_driver_name")} autoComplete="off" className={inputClass} />
         </Field>
         {isNew && (
           <Field label="Current KM / hours (optional)" htmlFor="initial_reading" hint="You can add it later">

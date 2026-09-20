@@ -60,3 +60,9 @@ body {
 /* mobile: keep content clear of the bottom bar and the phone's home indicator */
 .pb-safe { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
 .bottom-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+/* vehicle snapshot panel: slides up on phones, in from the right on larger screens */
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes slide-in { from { transform: translateX(100%); } to { transform: none; } }
+.snapshot-panel { animation: sheet-up .32s cubic-bezier(.22,.61,.36,1) both; }
+@media (min-width: 768px) { .snapshot-panel { animation-name: slide-in; } }

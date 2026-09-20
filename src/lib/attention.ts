@@ -7,7 +7,7 @@ export type Priority = "critical" | "important" | "normal";
 export type AttentionItem = {
   key: string;
   priority: Priority;
-  kind: "service" | "reading" | "setup" | "compliance" | "breakdown";
+  kind: "service" | "reading" | "setup" | "compliance" | "breakdown" | "stock" | "purchase";
   assetId: string | null;
   assetName: string;
   assetClass: string | null;   // vehicle | machinery | trailer | equipment | null (stores items)
@@ -121,6 +121,14 @@ export type PurchaseRequestRow = {
   rejection_reason: string | null; created_at: string; item_count: number; estimated_total: number;
 };
 
+export type PurchasePlanRow = {
+  id: string; name: string; description: string; quantity: number; cycle_months: number;
+  estimated_unit_cost: number | null; spare_part_id: string | null; part_name: string | null; part_unit: string | null;
+  supplier_id: string | null; supplier_name: string | null; asset_ids: string[]; asset_names: string[];
+  next_asset_id: string | null; next_asset_name: string | null; next_due_date: string; days_until_due: number;
+  last_requested_at: string | null; notes: string | null; is_active: boolean;
+};
+
 /** Release 2 tables may not exist yet — never let that break the dashboard */
 async function safeSelect<T>(supabase: SupabaseClient, view: string, build: (q: any) => any): Promise<T[]> {
   try {
@@ -133,12 +141,13 @@ async function safeSelect<T>(supabase: SupabaseClient, view: string, build: (q: 
 }
 
 export async function loadAttention(supabase: SupabaseClient) {
-  const [{ data: assets, error: e1 }, { data: docs, error: e2 }, breakdowns, parts, prs] = await Promise.all([
+  const [{ data: assets, error: e1 }, { data: docs, error: e2 }, breakdowns, parts, prs, plans] = await Promise.all([
     supabase.from("v_asset_service_status").select("*").is("archived_at", null),
     supabase.from("v_compliance_status").select("*").neq("status", "valid"),
     safeSelect<BreakdownRow>(supabase, "v_breakdowns", (q) => q.neq("status", "resolved")),
     safeSelect<PartRow>(supabase, "v_part_stock_status", (q) => q.neq("stock_status", "ok")),
     safeSelect<PurchaseRequestRow>(supabase, "v_purchase_requests", (q) => q.eq("status", "submitted")),
+    safeSelect<PurchasePlanRow>(supabase, "v_purchase_plans", (q) => q.eq("is_active", true).lte("days_until_due", 7)),
   ]);
   if (e1) throw e1;
   if (e2) throw e2;
@@ -239,7 +248,7 @@ export async function loadAttention(supabase: SupabaseClient) {
     if (p.on_order > 0) continue;   // already being bought
     const out = p.stock_status === "out_of_stock";
     items.push({
-      key: `stk-${p.id}`, priority: out ? "important" : "normal", kind: "setup",
+      key: `stk-${p.id}`, priority: out ? "important" : "normal", kind: "stock",
       assetId: null, assetName: p.name, assetClass: null, reg: p.part_number ?? "—",
       headline: out ? "Out of stock" : "Low stock",
       detail: `Minimum ${formatNumber(p.minimum_stock)} ${p.unit}${p.supplier_name ? ` · ${p.supplier_name}` : ""}`,
@@ -253,7 +262,7 @@ export async function loadAttention(supabase: SupabaseClient) {
   for (const r of prs) {
     const days = Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86400000);
     items.push({
-      key: `pr-${r.id}`, priority: days >= 2 ? "important" : "normal", kind: "setup",
+      key: `pr-${r.id}`, priority: days >= 2 ? "important" : "normal", kind: "purchase",
       assetId: null, assetName: `Purchase request ${r.request_number}`, assetClass: null, reg: "—",
       headline: "Waiting for approval",
       detail: `${r.item_count} item(s)${r.requested_by_name ? ` · from ${r.requested_by_name}` : ""}`,
@@ -264,9 +273,23 @@ export async function loadAttention(supabase: SupabaseClient) {
     });
   }
 
+  for (const pl of plans) {
+    const d = pl.days_until_due;
+    items.push({
+      key: `plan-${pl.id}`, priority: d <= 0 ? "important" : "normal", kind: "purchase",
+      assetId: null, assetName: pl.name, assetClass: null, reg: "—",
+      headline: d < 0 ? "Buying plan overdue" : d === 0 ? "Buying plan due today" : "Buying plan due soon",
+      detail: `${formatNumber(pl.quantity)} × ${pl.description}${pl.next_asset_name ? ` · this time for ${pl.next_asset_name}` : ""}`,
+      metric: d < 0 ? `${-d} days late` : d === 0 ? "today" : `in ${d} days`,
+      metricNote: pl.estimated_unit_cost ? `≈ KES ${formatNumber(Number(pl.estimated_unit_cost) * Number(pl.quantity))}` : null,
+      action: { label: "Create request", href: `/purchasing/plans#plan-${pl.id}` },
+      sort: d,
+    });
+  }
+
   items.sort((x, y) =>
     PRIORITY_ORDER[x.priority] - PRIORITY_ORDER[y.priority] ||
     classRank(x.assetClass) - classRank(y.assetClass) ||
     x.sort - y.sort);
-  return { items, assets: rows, docs: (docs ?? []) as ComplianceRow[], breakdowns, parts, prs };
+  return { items, assets: rows, docs: (docs ?? []) as ComplianceRow[], breakdowns, parts, prs, plans };
 }

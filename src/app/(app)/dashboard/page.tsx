@@ -2,18 +2,22 @@ import Link from "next/link";
 import { AlertOctagon, CheckCircle2, ClipboardList, FileCheck2, Truck, Wrench, Gauge } from "lucide-react";
 import { requireUser, canEditFleet } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { loadAttention, type Priority } from "@/lib/attention";
+import { loadAttention, type AttentionItem, type ComplianceRow, type Priority } from "@/lib/attention";
 import { Card, CardHeader, EmptyState, PageHeader, StatCard, cn } from "@/components/ui";
 import { ActionGroups, AllClear, P_STYLE, PriorityBar } from "@/components/dashboard/action-center";
+import { AssetSnapshot, type LastService, type SnapshotExtra } from "@/components/dashboard/asset-snapshot";
+import { SnapshotShell } from "@/components/dashboard/snapshot-shell";
 import { formatDate, todayNairobi } from "@/lib/format";
 
 export const metadata = { title: "Dashboard" };
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ show?: string; denied?: string }> }) {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ show?: string; denied?: string; asset?: string }> }) {
   const user = await requireUser();
   const sp = await searchParams;
   const supabase = await createClient();
-  const { items, assets, docs } = await loadAttention(supabase);
+  const { items, assets, docs, breakdowns } = await loadAttention(supabase);
 
   const active = assets.filter((a) => a.operational_status !== "disposed");
   const count = (p: Priority) => items.filter((i) => i.priority === p).length;
@@ -23,6 +27,37 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Africa/Nairobi" }).format(new Date()));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const critical = count("critical");
+
+  // Links keep the current filter, so opening/closing a vehicle doesn't reset the list
+  const base = filter === "all" ? "/dashboard" : `/dashboard?show=${filter}`;
+  const withAsset = (id: string) => `${base}${base.includes("?") ? "&" : "?"}asset=${id}`;
+  const rowHref = (item: AttentionItem) => (item.assetId ? withAsset(item.assetId) : item.action?.href ?? null);
+
+  // Vehicle snapshot (opened by clicking a row)
+  const selectedId = sp.asset && UUID.test(sp.asset) ? sp.asset : null;
+  const selected = selectedId ? assets.find((a) => a.id === selectedId) ?? null : null;
+  let snapshot: React.ReactNode = null;
+  if (selected) {
+    const [{ data: extra }, { data: assetDocs }, { data: last }] = await Promise.all([
+      supabase.from("assets").select("driver_name, co_driver_name, make, model").eq("id", selected.id).maybeSingle(),
+      supabase.from("v_compliance_status").select("*").eq("asset_id", selected.id),
+      supabase.from("service_records").select("service_date, service_type, performed_by, cost")
+        .eq("asset_id", selected.id).order("service_date", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    snapshot = (
+      <SnapshotShell closeHref={base} title={selected.name}>
+        <AssetSnapshot
+          row={selected}
+          extra={(extra ?? { driver_name: null, co_driver_name: null, make: null, model: null }) as SnapshotExtra}
+          docs={(assetDocs ?? []) as ComplianceRow[]}
+          breakdowns={breakdowns.filter((b) => b.asset_id === selected.id)}
+          items={items.filter((i) => i.assetId === selected.id)}
+          lastService={(last ?? null) as LastService}
+          canEdit={canEditFleet(user.role)}
+        />
+      </SnapshotShell>
+    );
+  }
 
   return (
     <>
@@ -81,13 +116,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </EmptyState>
           )
         ) : (
-          <div className="mt-3"><ActionGroups items={shown} canAct={canEditFleet(user.role)} /></div>
+          <div className="mt-3"><ActionGroups items={shown} canAct={canEditFleet(user.role)} rowHref={rowHref} selectedAssetId={selectedId} /></div>
         )}
       </Card>
 
-      {critical > 0 && (
-        <p className="mt-4 text-center text-xs text-slate-400">Critical items are also emailed every morning at 7:00.</p>
-      )}
+      <p className="mt-4 text-center text-xs text-slate-400">
+        Tap any vehicle or machine for its snapshot.{critical > 0 ? " Critical items are also emailed every morning at 7:00." : ""}
+      </p>
+
+      {snapshot}
     </>
   );
 }

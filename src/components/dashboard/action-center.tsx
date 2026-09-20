@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertOctagon, AlertTriangle, CheckCircle2, FileCheck2, Gauge, Info, Settings2, TriangleAlert, Wrench, type LucideIcon } from "lucide-react";
+import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronRight, FileCheck2, Gauge, Info, Package, Settings2, ShoppingCart, TriangleAlert, Wrench, type LucideIcon } from "lucide-react";
 import { CLASS_LABEL, classRank, type AttentionItem, type Priority } from "@/lib/attention";
 import { EmptyState, buttonClass, cn } from "@/components/ui";
 
@@ -26,26 +26,31 @@ export const P_STYLE: Record<Priority, {
 
 const KIND_ICON: Record<AttentionItem["kind"], LucideIcon> = {
   service: Wrench, reading: Gauge, compliance: FileCheck2, breakdown: TriangleAlert, setup: Settings2,
+  stock: Package, purchase: ShoppingCart,
 };
 
-function Row({ item, canAct }: { item: AttentionItem; canAct: boolean }) {
+/**
+ * One row: icon tile · what & where · the number · the action.
+ * The whole row is clickable (a "stretched" link); the action button sits above it.
+ */
+function Row({ item, canAct, href, selected }: { item: AttentionItem; canAct: boolean; href: string | null; selected: boolean }) {
   const P = P_STYLE[item.priority];
   const Icon = KIND_ICON[item.kind];
   return (
-    <div className="group relative">
-      <div className="flex items-start gap-3 py-3.5 pl-4 pr-3 transition-colors hover:bg-slate-50/80 sm:items-center sm:gap-4 sm:pl-5 sm:pr-5">
-        <span className={cn("absolute inset-y-0 left-0 w-[3px]", P.bar)} aria-hidden />
+    <div className={cn("group relative transition-colors", selected ? "bg-navy/[.04]" : "hover:bg-slate-50/80")}>
+      {href && (
+        <Link href={href} scroll={false} className="absolute inset-0 z-0 rounded-none focus-visible:outline-offset-[-2px]"
+          aria-label={`${item.assetName}: ${item.headline}`} />
+      )}
+      <div className="pointer-events-none relative flex items-start gap-3 py-3.5 pl-4 pr-3 sm:items-center sm:gap-4 sm:pl-5 sm:pr-5">
+        <span className={cn("absolute inset-y-0 left-0 w-[3px]", selected ? "bg-navy" : P.bar)} aria-hidden />
         <span className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset sm:mt-0", P.soft, P.ring, P.text)}>
           <Icon className="h-[18px] w-[18px]" aria-hidden />
         </span>
 
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-baseline gap-x-1.5 text-[15px] leading-tight">
-            {item.assetId ? (
-              <Link href={`/assets/${item.assetId}`} className="font-semibold text-slate-900 underline-offset-2 hover:text-navy hover:underline">
-                {item.assetName}
-              </Link>
-            ) : <span className="font-semibold text-slate-900">{item.assetName}</span>}
+            <span className={cn("font-semibold text-slate-900", href && "group-hover:text-navy")}>{item.assetName}</span>
             {item.reg !== "—" && <span className="text-xs font-medium text-slate-400">{item.reg}</span>}
           </p>
           <p className={cn("mt-0.5 text-sm font-medium", P.text)}>{item.headline}</p>
@@ -66,14 +71,17 @@ function Row({ item, canAct }: { item: AttentionItem; canAct: boolean }) {
         )}
 
         {item.action && canAct && (
-          <Link href={item.action.href} className={cn(buttonClass.small, "hidden shrink-0 sm:inline-flex sm:opacity-70 sm:transition sm:group-hover:opacity-100")}>
+          <Link href={item.action.href}
+            className={cn(buttonClass.small, "pointer-events-auto relative z-10 hidden shrink-0 sm:inline-flex sm:opacity-70 sm:transition sm:group-hover:opacity-100")}>
             {item.action.label}
           </Link>
         )}
+
+        {href && item.assetId && <ChevronRight className="hidden h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-navy sm:block" aria-hidden />}
       </div>
 
       {item.action && canAct && (
-        <div className="px-4 pb-3 sm:hidden">
+        <div className="relative z-10 px-4 pb-3 sm:hidden">
           <Link href={item.action.href} className={cn(buttonClass.small, "w-full")}>{item.action.label}</Link>
         </div>
       )}
@@ -81,7 +89,13 @@ function Row({ item, canAct }: { item: AttentionItem; canAct: boolean }) {
   );
 }
 
-export function ActionGroups({ items, canAct }: { items: AttentionItem[]; canAct: boolean }) {
+export function ActionGroups({ items, canAct, rowHref, selectedAssetId }: {
+  items: AttentionItem[];
+  canAct: boolean;
+  /** where a click on the row goes */
+  rowHref: (item: AttentionItem) => string | null;
+  selectedAssetId?: string | null;
+}) {
   const groups = (["critical", "important", "normal"] as Priority[])
     .map((p) => ({ p, rows: items.filter((i) => i.priority === p) }))
     .filter((g) => g.rows.length > 0);
@@ -112,7 +126,7 @@ export function ActionGroups({ items, canAct }: { items: AttentionItem[]; canAct
                         {label}
                       </p>
                     )}
-                    <Row item={item} canAct={canAct} />
+                    <Row item={item} canAct={canAct} href={rowHref(item)} selected={!!item.assetId && item.assetId === selectedAssetId} />
                   </li>
                 );
               })}

@@ -95,3 +95,76 @@ export async function receiveItem(_prev: ActionState, fd: FormData): Promise<Act
   revalidatePath(`/purchasing/${s(fd, "purchase_request_id")}`); revalidatePath("/parts"); revalidatePath("/dashboard");
   return { ok: true, message: "Received into stock.", nonce: Date.now() };
 }
+
+// ---------------------------------------------------------------------
+// Buying plan — regular purchases such as "1 tyre a month"
+// ---------------------------------------------------------------------
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function savePlan(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  await requireRole("admin", "stores", "fleet");
+  const v = values(fd);
+  const qty = num(fd, "quantity");
+  const months = Number(s(fd, "cycle_months") || "1");
+  const start = s(fd, "next_due_date");
+  const assetIds = fd.getAll("asset_ids").map(String).filter((id) => UUID.test(id));
+
+  if (s(fd, "name").length < 3) return { error: "Give the plan a name, e.g. \"Monthly tyres\".", values: v };
+  if (s(fd, "description").length < 2) return { error: "Say what is being bought.", values: v };
+  if (!qty || qty <= 0) return { error: "Enter a quantity greater than zero.", values: v };
+  if (!Number.isInteger(months) || months < 1 || months > 24) return { error: "Choose how often.", values: v };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return { error: "Choose the next date to buy.", values: v };
+  const cost = num(fd, "estimated_unit_cost");
+  if (s(fd, "estimated_unit_cost") && cost === null) return { error: "Unit cost must be a number.", values: v };
+
+  const payload = {
+    name: s(fd, "name"),
+    description: s(fd, "description"),
+    spare_part_id: s(fd, "spare_part_id") || null,
+    quantity: qty,
+    cycle_months: months,
+    estimated_unit_cost: cost,
+    supplier_id: s(fd, "supplier_id") || null,
+    asset_ids: assetIds,
+    next_due_date: start,
+    notes: s(fd, "notes") || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const supabase = await createClient();
+  const id = s(fd, "id");
+  const { error } = id
+    ? await supabase.from("purchase_plans").update(payload).eq("id", id)
+    : await supabase.from("purchase_plans").insert(payload);
+  if (error) return { error: friendlyError(error), values: v };
+
+  revalidatePath("/purchasing/plans"); revalidatePath("/dashboard");
+  redirect(`/purchasing/plans?saved=1`);
+}
+
+export async function requestFromPlan(fd: FormData) {
+  await requireRole("admin", "stores", "fleet");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_request_from_plan", { p_plan_id: s(fd, "id") });
+  revalidatePath("/purchasing"); revalidatePath("/purchasing/plans"); revalidatePath("/dashboard");
+  if (error) redirect(`/purchasing/plans?error=${encodeURIComponent(friendlyError(error))}`);
+  redirect(`/purchasing/${data.request_id}?created=1`);
+}
+
+export async function skipPlan(fd: FormData) {
+  await requireRole("admin", "stores", "fleet");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("skip_plan_cycle", { p_plan_id: s(fd, "id") });
+  revalidatePath("/purchasing/plans"); revalidatePath("/dashboard");
+  if (error) redirect(`/purchasing/plans?error=${encodeURIComponent(friendlyError(error))}`);
+}
+
+export async function togglePlan(fd: FormData) {
+  await requireRole("admin", "stores", "fleet");
+  const supabase = await createClient();
+  const { error } = await supabase.from("purchase_plans")
+    .update({ is_active: s(fd, "active") === "true", updated_at: new Date().toISOString() })
+    .eq("id", s(fd, "id"));
+  revalidatePath("/purchasing/plans"); revalidatePath("/dashboard");
+  if (error) redirect(`/purchasing/plans?error=${encodeURIComponent(friendlyError(error))}`);
+}

@@ -22,7 +22,7 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
 
   const [{ data: a }, { data: asset }, { data: readings }, { data: services }, { data: docs }, { data: settings }, { data: files }] = await Promise.all([
     supabase.from("v_asset_service_status").select("*").eq("id", id).maybeSingle(),
-    supabase.from("assets").select("make, model, notes, responsible:profiles!assets_responsible_user_id_fkey(full_name, email)").eq("id", id).maybeSingle(),
+    supabase.from("assets").select("make, model, notes, driver_name, co_driver_name, responsible:profiles!assets_responsible_user_id_fkey(full_name, email)").eq("id", id).maybeSingle(),
     supabase.from("meter_readings").select("id, reading, reading_at, source, note, flagged, recorder:profiles!meter_readings_recorded_by_fkey(full_name)").eq("asset_id", id).order("reading_at", { ascending: false }).limit(15),
     supabase.from("service_records").select("id, service_date, meter_at_service, service_type, performed_by, cost, notes").eq("asset_id", id).order("service_date", { ascending: false }).limit(20),
     supabase.from("v_compliance_status").select("*").eq("asset_id", id).order("expiry_date"),
@@ -87,6 +87,15 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
       <p className="-mt-2 mb-5 text-sm text-slate-500">
         {[formatReg(row.registration_number), row.category, [asset?.make, asset?.model].filter(Boolean).join(" ")].filter((x) => x && x !== "—").join(" · ")}
       </p>
+
+      {(asset?.driver_name || asset?.co_driver_name) && (
+        <p className="-mt-3 mb-5 text-sm text-slate-600">
+          {[
+            asset?.driver_name ? `${row.asset_class === "machinery" || row.asset_class === "equipment" ? "Operator" : "Driver"}: ${asset.driver_name}` : null,
+            asset?.co_driver_name ? `${row.asset_class === "machinery" || row.asset_class === "equipment" ? "Assistant" : "Co-driver"}: ${asset.co_driver_name}` : null,
+          ].filter(Boolean).join(" · ")}
+        </p>
+      )}
 
       {/* Mobile quick actions */}
       {edit && (
