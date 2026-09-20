@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { AlertOctagon, CheckCircle2, ClipboardList, FileCheck2, Truck, Wrench, Gauge } from "lucide-react";
+import { AlertOctagon, CheckCircle2, ClipboardList, FileCheck2, Gauge, Truck, Wrench } from "lucide-react";
 import { requireUser, canEditFleet } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { loadAttention, type AttentionItem, type ComplianceRow, type Priority } from "@/lib/attention";
-import { Card, CardHeader, EmptyState, PageHeader, StatCard, cn } from "@/components/ui";
-import { ActionGroups, AllClear, P_STYLE, PriorityBar } from "@/components/dashboard/action-center";
+import { loadAttention, type ComplianceRow, type Priority } from "@/lib/attention";
+import { buildAssetCards, criticalItems } from "@/lib/fleet-board";
+import { PageHeader, StatCard, cn } from "@/components/ui";
+import { CriticalStrip, FleetBoard, P_STYLE } from "@/components/dashboard/fleet-board";
+import { FleetStatusPanel, Next30Panel, StoresPanel } from "@/components/dashboard/panels";
 import { AssetSnapshot, type LastService, type SnapshotExtra } from "@/components/dashboard/asset-snapshot";
 import { SnapshotShell } from "@/components/dashboard/snapshot-shell";
 import { formatDate, todayNairobi } from "@/lib/format";
@@ -13,43 +15,40 @@ export const metadata = { title: "Dashboard" };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ show?: string; denied?: string; asset?: string }> }) {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ denied?: string; asset?: string }> }) {
   const user = await requireUser();
   const sp = await searchParams;
   const supabase = await createClient();
-  const { items, assets, docs, breakdowns } = await loadAttention(supabase);
+
+  const { items, assets, docs, allDocs, breakdowns } = await loadAttention(supabase);
+
+  const cards = buildAssetCards(assets, allDocs, breakdowns);
+  const critical = criticalItems(items);
+  const stores = items.filter((i) => i.assetId === null);
+
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Africa/Nairobi" }).format(new Date()));
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const active = assets.filter((a) => a.operational_status !== "disposed");
   const count = (p: Priority) => items.filter((i) => i.priority === p).length;
   const svc = (s: string) => active.filter((a) => a.service_status === s).length;
-  const filter = ["critical", "important", "normal"].includes(sp.show ?? "") ? (sp.show as Priority) : "all";
-  const shown = filter === "all" ? items : items.filter((i) => i.priority === filter);
-  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Africa/Nairobi" }).format(new Date()));
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const critical = count("critical");
-
-  // Links keep the current filter, so opening/closing a vehicle doesn't reset the list
-  const base = filter === "all" ? "/dashboard" : `/dashboard?show=${filter}`;
-  const withAsset = (id: string) => `${base}${base.includes("?") ? "&" : "?"}asset=${id}`;
-  const rowHref = (item: AttentionItem) => (item.assetId ? withAsset(item.assetId) : item.action?.href ?? null);
 
   // Vehicle snapshot (opened by clicking a row)
   const selectedId = sp.asset && UUID.test(sp.asset) ? sp.asset : null;
   const selected = selectedId ? assets.find((a) => a.id === selectedId) ?? null : null;
   let snapshot: React.ReactNode = null;
   if (selected) {
-    const [{ data: extra }, { data: assetDocs }, { data: last }] = await Promise.all([
+    const [{ data: extra }, { data: last }] = await Promise.all([
       supabase.from("assets").select("driver_name, co_driver_name, make, model").eq("id", selected.id).maybeSingle(),
-      supabase.from("v_compliance_status").select("*").eq("asset_id", selected.id),
       supabase.from("service_records").select("service_date, service_type, performed_by, cost")
         .eq("asset_id", selected.id).order("service_date", { ascending: false }).limit(1).maybeSingle(),
     ]);
     snapshot = (
-      <SnapshotShell closeHref={base} title={selected.name}>
+      <SnapshotShell closeHref="/dashboard" title={selected.name}>
         <AssetSnapshot
           row={selected}
           extra={(extra ?? { driver_name: null, co_driver_name: null, make: null, model: null }) as SnapshotExtra}
-          docs={(assetDocs ?? []) as ComplianceRow[]}
+          docs={allDocs.filter((d) => d.asset_id === selected.id) as ComplianceRow[]}
           breakdowns={breakdowns.filter((b) => b.asset_id === selected.id)}
           items={items.filter((i) => i.assetId === selected.id)}
           lastService={(last ?? null) as LastService}
@@ -87,41 +86,29 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <StatCard label="Documents" value={`${docs.filter((d) => d.status === "expired").length} / ${docs.filter((d) => d.status === "expiring_soon").length}`} tone={docs.some((d) => d.status === "expired") ? "red" : docs.length ? "amber" : "slate"} icon={FileCheck2} href="/compliance" sub="expired / expiring" />
       </div>
 
-      <Card className="animate-rise">
-        <CardHeader
-          title="Action Center"
-          subtitle={items.length ? "Grouped by urgency — the number on the right is what to watch" : "Nothing needs attention right now"}
-          icon={ClipboardList}
-          right={
-            <div className="flex flex-wrap gap-1 text-sm">
-              {(["all", "critical", "important", "normal"] as const).map((f) => {
-                const n = f === "all" ? items.length : count(f);
-                const on = filter === f;
-                if (f !== "all" && n === 0) return null;
-                return (
-                  <Link key={f} href={f === "all" ? "/dashboard" : `/dashboard?show=${f}`}
-                    className={cn("rounded-full px-3 py-1 text-xs font-medium capitalize transition", on ? "bg-navy text-white shadow-sm" : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50")}>
-                    {f} <span className="tabular">{n}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          }
-        />
-        {items.length > 0 && <div className="px-4 pt-3 sm:px-5"><PriorityBar items={items} /></div>}
-        {shown.length === 0 ? (
-          items.length === 0 ? <AllClear /> : (
-            <EmptyState title="Nothing in this filter" icon={CheckCircle2}>
-              <Link href="/dashboard" className="font-medium text-navy underline">Show everything</Link>
-            </EmptyState>
-          )
-        ) : (
-          <div className="mt-3"><ActionGroups items={shown} canAct={canEditFleet(user.role)} rowHref={rowHref} selectedAssetId={selectedId} /></div>
-        )}
-      </Card>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
+          <CriticalStrip items={critical} canAct={canEditFleet(user.role)} />
 
-      <p className="mt-4 text-center text-xs text-slate-400">
-        Tap any vehicle or machine for its snapshot.{critical > 0 ? " Critical items are also emailed every morning at 7:00." : ""}
+          <div className="mb-2.5 flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-slate-400" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-600">Action Center</h2>
+            <span className="text-xs text-slate-400">every asset · worst first</span>
+            <Link href="/assets" className="ml-auto text-xs font-medium text-navy hover:underline">Full register</Link>
+          </div>
+
+          <FleetBoard cards={cards} selectedId={selectedId} />
+        </div>
+
+        <aside className="space-y-4">
+          <FleetStatusPanel cards={cards} />
+          <Next30Panel assets={assets} allDocs={allDocs} />
+          <StoresPanel items={stores} />
+        </aside>
+      </div>
+
+      <p className="mt-5 text-center text-xs text-slate-400">
+        Tap any asset for its snapshot.{critical.length > 0 ? " Critical items are emailed every morning at 7:00." : ""}
       </p>
 
       {snapshot}

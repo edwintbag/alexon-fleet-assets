@@ -2,15 +2,20 @@ import Link from "next/link";
 import { Download, Plus, Search, Truck, ChevronRight } from "lucide-react";
 import { requireUser, canEditFleet } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { CLASS_LABEL, classRank, type AssetStatusRow } from "@/lib/attention";
+import { CLASS_LABEL, classRank, loadAttention, type AssetStatusRow, type ComplianceRow } from "@/lib/attention";
 import { Badge, Card, EmptyState, LinkButton, PageHeader, buttonClass, cn, inputClass } from "@/components/ui";
 import { AutoSubmit } from "@/components/form-bits";
+import { ClickableRow } from "@/components/clickable-row";
+import { AssetSnapshot, type LastService, type SnapshotExtra } from "@/components/dashboard/asset-snapshot";
+import { SnapshotShell } from "@/components/dashboard/snapshot-shell";
 import { SERVICE_STATUS, OPERATIONAL_STATUS } from "@/lib/status";
 import { daysAgo, formatMeter, formatNumber, formatReg, unitFor } from "@/lib/format";
 
 export const metadata = { title: "Fleet & Machinery" };
 
-type SP = { q?: string; service?: string; status?: string; category?: string; archived?: string };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type SP = { q?: string; service?: string; status?: string; category?: string; archived?: string; asset?: string };
 
 export default async function AssetsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requireUser();
@@ -47,8 +52,39 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
     return acc;
   }, []);
 
-  const exportQs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]).toString();
+  const exportQs = new URLSearchParams(Object.entries(sp).filter(([, v]) => v && v !== sp.asset) as [string, string][]).toString();
   const filtered = rows.length !== all.length;
+
+  // Keep the current filters when a row opens or closes its snapshot
+  const keep = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "asset" && k !== "archived") as [string, string][]).toString();
+  const base = keep ? `/assets?${keep}` : "/assets";
+  const rowHref = (id: string) => `${base}${keep ? "&" : "?"}asset=${id}`;
+
+  // Snapshot panel — same one as the dashboard
+  const selectedId = sp.asset && UUID.test(sp.asset) ? sp.asset : null;
+  const selected = selectedId ? all.find((a) => a.id === selectedId) ?? null : null;
+  let snapshot: React.ReactNode = null;
+  if (selected) {
+    const [{ items, allDocs, breakdowns }, { data: extra }, { data: last }] = await Promise.all([
+      loadAttention(supabase),
+      supabase.from("assets").select("driver_name, co_driver_name, make, model").eq("id", selected.id).maybeSingle(),
+      supabase.from("service_records").select("service_date, service_type, performed_by, cost")
+        .eq("asset_id", selected.id).order("service_date", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    snapshot = (
+      <SnapshotShell closeHref={base} title={selected.name}>
+        <AssetSnapshot
+          row={selected}
+          extra={(extra ?? { driver_name: null, co_driver_name: null, make: null, model: null }) as SnapshotExtra}
+          docs={allDocs.filter((d) => d.asset_id === selected.id) as ComplianceRow[]}
+          breakdowns={breakdowns.filter((b) => b.asset_id === selected.id)}
+          items={items.filter((i) => i.assetId === selected.id)}
+          lastService={(last ?? null) as LastService}
+          canEdit={canEditFleet(user.role)}
+        />
+      </SnapshotShell>
+    );
+  }
 
   return (
     <>
@@ -125,7 +161,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                     const s = SERVICE_STATUS[a.service_status];
                     const o = OPERATIONAL_STATUS[a.operational_status];
                     return (
-                      <tr key={a.id} className="group transition-colors hover:bg-slate-50/70">
+                      <ClickableRow key={a.id} href={rowHref(a.id)} selected={a.id === selectedId}>
                         <td className="px-5 py-3">
                           <Link href={`/assets/${a.id}`} className="font-medium text-slate-900 underline-offset-2 hover:underline">{a.name}</Link>
                           <div className="text-xs text-slate-500">{formatReg(a.registration_number)}</div>
@@ -147,7 +183,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                         </td>
                         <td className="px-4 py-3"><Badge tone={s.tone}>{s.label}</Badge></td>
                         <td className="px-4 py-3"><Badge tone={o.tone} icon={false}>{o.label}</Badge></td>
-                      </tr>
+                      </ClickableRow>
                     );
                     })}
                   </tbody>
@@ -168,7 +204,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
                       const s = SERVICE_STATUS[a.service_status];
                       return (
                         <li key={a.id}>
-                          <Link href={`/assets/${a.id}`} className="flex items-center gap-3 px-4 py-3.5 transition active:bg-slate-50">
+                          <Link href={rowHref(a.id)} scroll={false} className="flex items-center gap-3 px-4 py-3.5 transition active:bg-slate-50">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-2">
                                 <p className="truncate font-medium text-slate-900">{a.name}</p>
@@ -195,6 +231,8 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
           </>
         )}
       </Card>
+
+      {snapshot}
     </>
   );
 }

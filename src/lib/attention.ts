@@ -143,7 +143,7 @@ async function safeSelect<T>(supabase: SupabaseClient, view: string, build: (q: 
 export async function loadAttention(supabase: SupabaseClient) {
   const [{ data: assets, error: e1 }, { data: docs, error: e2 }, breakdowns, parts, prs, plans] = await Promise.all([
     supabase.from("v_asset_service_status").select("*").is("archived_at", null),
-    supabase.from("v_compliance_status").select("*").neq("status", "valid"),
+    supabase.from("v_compliance_status").select("*"),
     safeSelect<BreakdownRow>(supabase, "v_breakdowns", (q) => q.neq("status", "resolved")),
     safeSelect<PartRow>(supabase, "v_part_stock_status", (q) => q.neq("stock_status", "ok")),
     safeSelect<PurchaseRequestRow>(supabase, "v_purchase_requests", (q) => q.eq("status", "submitted")),
@@ -153,6 +153,8 @@ export async function loadAttention(supabase: SupabaseClient) {
   if (e2) throw e2;
 
   const rows = (assets ?? []) as AssetStatusRow[];
+  const allDocs = (docs ?? []) as ComplianceRow[];
+  const attentionDocs = allDocs.filter((d) => d.status !== "valid");
   const items: AttentionItem[] = [];
 
   for (const a of rows) {
@@ -215,7 +217,7 @@ export async function loadAttention(supabase: SupabaseClient) {
     }
   }
 
-  for (const d of (docs ?? []) as ComplianceRow[]) {
+  for (const d of attentionDocs) {
     const priority: Priority = d.status === "expired" ? "critical" : d.days_remaining <= 7 ? "important" : "normal";
     items.push({
       key: `doc-${d.id}`, priority, kind: "compliance",
@@ -291,5 +293,5 @@ export async function loadAttention(supabase: SupabaseClient) {
     PRIORITY_ORDER[x.priority] - PRIORITY_ORDER[y.priority] ||
     classRank(x.assetClass) - classRank(y.assetClass) ||
     x.sort - y.sort);
-  return { items, assets: rows, docs: (docs ?? []) as ComplianceRow[], breakdowns, parts, prs, plans };
+  return { items, assets: rows, docs: attentionDocs, allDocs, breakdowns, parts, prs, plans };
 }
